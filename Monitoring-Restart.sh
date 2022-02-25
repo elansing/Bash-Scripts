@@ -1,5 +1,6 @@
 CTID="e98ce160983c"
 
+DockerStop=`docker stop e98ce160983c`
 if [[ "$DockerStop" = "$CTID" ]]; then
   sleep 10
   DockerStart=`docker start e98ce160983c`
