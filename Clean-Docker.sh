@@ -1,4 +1,4 @@
 docker image prune -a -f
-docker volume prune -a -f
-docker network prune -a -f
+docker volume prune
+docker network prune
 rm Clean-Docker.sh
