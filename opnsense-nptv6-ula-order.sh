@@ -16,7 +16,7 @@
 #   cp 50-nptv6-ula-order.sh /usr/local/etc/rc.syshook.d/start/50-nptv6-ula-order
 #   chmod 755 /usr/local/etc/rc.syshook.d/start/50-nptv6-ula-order
 #
-# Manuell / per Cron (ohne Warteschleife, z. B. nach einem Praefixwechsel):
+# Manuell (ohne Warteschleife): "once"; per Cron jede Minute: "watch" (still, siehe README):
 #   /usr/local/etc/rc.syshook.d/start/50-nptv6-ula-order once
 #
 # Log: `grep nptv6-fix /var/log/system/latest.log` bzw. System > Log-Dateien.
@@ -27,6 +27,7 @@ ULA="fd9b:d169:9a9f:40::1"
 PROVIDER_PREFIX="2003:"
 MAX_WAIT=600   # Sekunden, nur im Boot-Modus
 TAG="nptv6-fix"
+QUIET=0        # 1 im watch-Modus: "ok"-Meldungen nicht loggen (laeuft jede Minute)
 
 log() {
     /usr/bin/logger -t "$TAG" "$1"
@@ -44,12 +45,17 @@ has_provider_address() {
 fix() {
     first="$(first_global)"
     if [ -z "$first" ]; then
-        log "keine globale IPv6-Adresse auf $IFACE - nichts zu tun"
+        [ "$QUIET" = 1 ] || log "keine globale IPv6-Adresse auf $IFACE - nichts zu tun"
         return 1
     fi
     if [ "$first" != "$ULA" ]; then
-        log "Reihenfolge ok (erste Adresse: $first)"
+        [ "$QUIET" = 1 ] || log "Reihenfolge ok (erste Adresse: $first)"
         return 0
+    fi
+
+    if ! has_provider_address; then
+        [ "$QUIET" = 1 ] || log "noch keine Provider-Adresse ($PROVIDER_PREFIX...) auf $IFACE - nichts zu tun"
+        return 1
     fi
 
     prefixlen="$(/sbin/ifconfig "$IFACE" | /usr/bin/awk -v a="$ULA" '$1 == "inet6" && $2 == a { for (i = 1; i <= NF; i++) if ($i == "prefixlen") print $(i + 1) }')"
@@ -69,6 +75,14 @@ fix() {
     log "fertig - erste Adresse jetzt $first, Filterregeln neu geladen"
     return 0
 }
+
+# Laufzeit-Modus fuer Cron (jede Minute): wie "once", aber still, solange alles ok ist.
+# Faengt Link-Flaps (ixl1) und DHCPv6-Neuvergaben ab, die die Reihenfolge nach dem Boot verdrehen.
+if [ "$1" = "watch" ]; then
+    QUIET=1
+    fix
+    exit $?
+fi
 
 if [ "$1" = "once" ]; then
     fix
